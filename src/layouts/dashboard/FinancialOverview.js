@@ -9,10 +9,46 @@ import {
   InputLabel,
   Select,
   Button,
+  CircularProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
 } from "@mui/material";
 import * as echarts from "echarts";
 import { db } from "../manage-employee/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
+
+// Utility function to calculate average monthly expenses
+const calculateAverageMonthlyExpenses = (expenses) => {
+  if (expenses.length === 0) return 0;
+
+  const monthlyExpenses = {};
+  expenses.forEach((expense) => {
+    const date = expense.date;
+    const monthYear = `${date.getFullYear()}-${date.getMonth() + 1}`;
+    if (!monthlyExpenses[monthYear]) {
+      monthlyExpenses[monthYear] = 0;
+    }
+    monthlyExpenses[monthYear] += expense.amount;
+  });
+
+  const monthlyTotals = Object.values(monthlyExpenses);
+  const sumMonthlyTotals = monthlyTotals.reduce((sum, total) => sum + total, 0);
+  const numberOfMonths = monthlyTotals.length;
+
+  return numberOfMonths > 0 ? sumMonthlyTotals / numberOfMonths : 0;
+};
+
+// Utility function to calculate financial runway
+const calculateRunwayMonths = (earnings, expenses) => {
+  const totalEarnings = earnings.reduce((sum, earning) => sum + earning.amount, 0);
+  const averageMonthlyExpenses = calculateAverageMonthlyExpenses(expenses);
+  return averageMonthlyExpenses > 0 ? totalEarnings / averageMonthlyExpenses : 0;
+};
 
 const FinancialOverview = () => {
   const [view, setView] = useState("Organization Level");
@@ -22,188 +58,191 @@ const FinancialOverview = () => {
   const [organizationEarnings, setOrganizationEarnings] = useState([]);
   const [accountExpenses, setAccountExpenses] = useState([]);
   const [accountEarnings, setAccountEarnings] = useState([]);
-  const [activeTab, setActiveTab] = useState("Expenses"); // Set "Expenses" as default
+  const [activeTab, setActiveTab] = useState("Expenses");
+  const [loading, setLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
+  // Fetch organization-level data on mount
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch accounts
-      const accountsSnapshot = await getDocs(collection(db, "accounts"));
-      const accountsData = accountsSnapshot.docs.map((doc) => ({
-        id: doc.id, // Firebase document ID
-        accountId: doc.data().accountId, // Use the accountId field from Firestore
-        ...doc.data(),
-      }));
-      setAccounts(accountsData);
+      setLoading(true);
+      try {
+        // Fetch accounts
+        const accountsSnapshot = await getDocs(collection(db, "accounts"));
+        const accountsData = accountsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          accountId: doc.data().accountId,
+          ...doc.data(),
+        }));
+        setAccounts(accountsData);
 
-      // Fetch organization-level expenses
-      const expensesSnapshot = await getDocs(collection(db, "expenses"));
-      const expensesData = expensesSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        date: doc.data().date.toDate(), // Convert Firestore timestamp to JavaScript Date
-        amount: doc.data().amount,
-        category: doc.data().category,
-        accountId: doc.data().accountId, // Ensure accountId is included
-      }));
-      setOrganizationExpenses(expensesData);
+        // Fetch expenses
+        const expensesSnapshot = await getDocs(collection(db, "expenses"));
+        const expensesData = expensesSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          date: doc.data().date.toDate(),
+          amount: doc.data().amount,
+          category: doc.data().category,
+          accountId: doc.data().accountId,
+          referenceId: doc.data().referenceId,
+        }));
+        setOrganizationExpenses(expensesData);
 
-      // Fetch organization-level earnings
-      const earningsSnapshot = await getDocs(collection(db, "earnings"));
-      const earningsData = earningsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        date: doc.data().date.toDate(), // Convert Firestore timestamp to JavaScript Date
-        amount: doc.data().amount,
-        category: doc.data().category,
-        accountId: doc.data().accountId, // Ensure accountId is included
-      }));
-      setOrganizationEarnings(earningsData);
+        // Fetch earnings
+        const earningsSnapshot = await getDocs(collection(db, "earnings"));
+        const earningsData = earningsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          date: doc.data().date.toDate(),
+          amount: doc.data().amount,
+          category: doc.data().category,
+          accountId: doc.data().accountId,
+          referenceId: doc.data().referenceId,
+        }));
+        setOrganizationEarnings(earningsData);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
   }, []);
 
-  const fetchAccountData = async (accountId) => {
-    // Fetch account-level expenses
-    const expensesQuery = query(collection(db, "expenses"), where("accountId", "==", accountId));
-    const expensesSnapshot = await getDocs(expensesQuery);
-    const expensesData = expensesSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      date: doc.data().date.toDate(),
-      amount: doc.data().amount,
-      category: doc.data().category,
-      accountId: doc.data().accountId,
-    }));
-    setAccountExpenses(expensesData);
+  // Fetch account-level data when selectedAccount changes
+  useEffect(() => {
+    const loadAccountData = async () => {
+      if (selectedAccount) {
+        setLoading(true);
+        try {
+          // Fetch account-specific expenses
+          const expensesQuery = query(
+            collection(db, "expenses"),
+            where("accountId", "==", selectedAccount.accountId)
+          );
+          const expensesSnapshot = await getDocs(expensesQuery);
+          const expensesData = expensesSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            date: doc.data().date.toDate(),
+            amount: doc.data().amount,
+            category: doc.data().category,
+            accountId: doc.data().accountId,
+            referenceId: doc.data().referenceId,
+          }));
+          setAccountExpenses(expensesData);
 
-    // Fetch account-level earnings
-    const earningsQuery = query(collection(db, "earnings"), where("accountId", "==", accountId));
-    const earningsSnapshot = await getDocs(earningsQuery);
-    const earningsData = earningsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      date: doc.data().date.toDate(),
-      amount: doc.data().amount,
-      category: doc.data().category,
-      accountId: doc.data().accountId,
-    }));
-    setAccountEarnings(earningsData);
-  };
+          // Fetch account-specific earnings
+          const earningsQuery = query(
+            collection(db, "earnings"),
+            where("accountId", "==", selectedAccount.accountId)
+          );
+          const earningsSnapshot = await getDocs(earningsQuery);
+          const earningsData = earningsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            date: doc.data().date.toDate(),
+            amount: doc.data().amount,
+            category: doc.data().category,
+            accountId: doc.data().accountId,
+            referenceId: doc.data().referenceId,
+          }));
+          setAccountEarnings(earningsData);
+        } catch (error) {
+          console.error("Error fetching account data:", error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    loadAccountData();
+  }, [selectedAccount]);
 
+  // Update chart based on activeTab, view, and data changes
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    let data;
+    if (activeTab === "Expenses") {
+      data = transformDataToPieData(
+        view === "Organization Level" ? organizationExpenses : accountExpenses
+      );
+    } else if (activeTab === "Earning") {
+      data = transformDataToPieData(
+        view === "Organization Level" ? organizationEarnings : accountEarnings
+      );
+    } else if (activeTab === "Profit and Loss") {
+      const expenses = view === "Organization Level" ? organizationExpenses : accountExpenses;
+      const earnings = view === "Organization Level" ? organizationEarnings : accountEarnings;
+      data = aggregateDataByMonth(expenses, earnings);
+    } else if (activeTab === "Financial Runway") {
+      const earnings = view === "Organization Level" ? organizationEarnings : accountEarnings;
+      const expenses = view === "Organization Level" ? organizationExpenses : accountExpenses;
+      const runwayMonths = calculateRunwayMonths(earnings, expenses);
+      data = { runwayMonths };
+    }
+    updateChart(data);
+  }, [
+    activeTab,
+    view,
+    selectedAccount,
+    organizationExpenses,
+    organizationEarnings,
+    accountExpenses,
+    accountEarnings,
+  ]);
+
+  // Function to update the ECharts instance
   const updateChart = (data) => {
     if (!chartRef.current) return;
 
-    // Destroy the existing chart instance if it exists
     if (chartInstance.current) {
       chartInstance.current.dispose();
       chartInstance.current = null;
     }
 
-    // Initialize a new chart instance
     chartInstance.current = echarts.init(chartRef.current);
 
     if (activeTab === "Profit and Loss") {
-      // Bar chart for Profit and Loss
       const option = {
-        title: {
-          text: "Earnings vs Expenses",
-          subtext: "Monthly Comparison",
-        },
-        tooltip: {
-          trigger: "axis",
-        },
-        legend: {
-          data: ["Earnings", "Expenses"],
-        },
-        toolbox: {
-          show: true,
-          feature: {
-            dataView: { show: true, readOnly: false },
-            magicType: { show: true, type: ["line", "bar"] },
-            restore: { show: true },
-            saveAsImage: { show: true },
-          },
-        },
-        calculable: true,
-        xAxis: [
-          {
-            type: "category",
-            data: data.months, // Months for the x-axis
-          },
-        ],
-        yAxis: [
-          {
-            type: "value",
-          },
-        ],
+        title: { text: "Earnings vs Expenses", subtext: "Monthly Comparison" },
+        tooltip: { trigger: "axis" },
+        legend: { data: ["Earnings", "Expenses"] },
+        xAxis: [{ type: "category", data: data.months }],
+        yAxis: [{ type: "value" }],
         series: [
           {
             name: "Earnings",
             type: "bar",
-            data: data.earnings, // Earnings data
-            markPoint: {
-              data: [
-                { type: "max", name: "Max" },
-                { type: "min", name: "Min" },
-              ],
-            },
-            markLine: {
-              data: [{ type: "average", name: "Avg" }],
-            },
+            data: data.earnings,
           },
           {
             name: "Expenses",
             type: "bar",
-            data: data.expenses, // Expenses data
-            markPoint: {
-              data: [
-                { type: "max", name: "Max" },
-                { type: "min", name: "Min" },
-              ],
-            },
-            markLine: {
-              data: [{ type: "average", name: "Avg" }],
-            },
+            data: data.expenses,
           },
         ],
       };
       chartInstance.current.setOption(option);
     } else if (activeTab === "Financial Runway") {
-      // Bar chart for Financial Runway
       const option = {
         title: {
           text: "Financial Runway",
-          subtext: "Months of Runway Based on Current Expenses",
+          subtext: "Months of Operation Based on Current Earnings",
         },
-        tooltip: {
-          trigger: "axis",
-        },
-        xAxis: {
-          type: "category",
-          data: ["Runway Months"],
-        },
-        yAxis: {
-          type: "value",
-        },
+        tooltip: { trigger: "axis" },
+        xAxis: { type: "category", data: ["Runway Months"] },
+        yAxis: { type: "value" },
         series: [
           {
             name: "Runway Months",
             type: "bar",
             data: [data.runwayMonths],
-            markPoint: {
-              data: [
-                { type: "max", name: "Max" },
-                { type: "min", name: "Min" },
-              ],
-            },
-            markLine: {
-              data: [{ type: "average", name: "Avg" }],
-            },
           },
         ],
       };
       chartInstance.current.setOption(option);
     } else {
-      // Pie chart for Expenses and Earning
       const option = {
         tooltip: { trigger: "item" },
         legend: { top: "5%", left: "center" },
@@ -216,27 +255,24 @@ const FinancialOverview = () => {
             padAngle: 5,
             itemStyle: { borderRadius: 10 },
             label: { show: false, position: "center" },
-            emphasis: {
-              label: { show: true, fontSize: 20, fontWeight: "bold" },
-            },
+            emphasis: { label: { show: true, fontSize: 20, fontWeight: "bold" } },
             labelLine: { show: false },
             data: data.length ? data : [{ value: 0, name: "No Data" }],
           },
         ],
       };
       chartInstance.current.setOption(option);
+      chartInstance.current.on("click", (params) => {
+        setSelectedCategory(params.name);
+      });
     }
   };
 
+  // Function to aggregate data by month
   const aggregateDataByMonth = (expenses, earnings) => {
     const monthlyData = {};
+    const getMonthYear = (date) => `${date.getFullYear()}-${date.getMonth() + 1}`;
 
-    // Helper function to get the month and year from a date
-    const getMonthYear = (date) => {
-      return `${date.getFullYear()}-${date.getMonth() + 1}`; // Format: "YYYY-MM"
-    };
-
-    // Aggregate expenses by month
     expenses.forEach((expense) => {
       const monthYear = getMonthYear(expense.date);
       if (!monthlyData[monthYear]) {
@@ -245,7 +281,6 @@ const FinancialOverview = () => {
       monthlyData[monthYear].expenses += expense.amount;
     });
 
-    // Aggregate earnings by month
     earnings.forEach((earning) => {
       const monthYear = getMonthYear(earning.date);
       if (!monthlyData[monthYear]) {
@@ -254,14 +289,14 @@ const FinancialOverview = () => {
       monthlyData[monthYear].earnings += earning.amount;
     });
 
-    // Convert to arrays for the chart
-    const months = Object.keys(monthlyData).sort(); // Sort months chronologically
+    const months = Object.keys(monthlyData).sort();
     const expensesData = months.map((month) => monthlyData[month].expenses);
     const earningsData = months.map((month) => monthlyData[month].earnings);
 
     return { months, expenses: expensesData, earnings: earningsData };
   };
 
+  // Function to transform data into pie chart format
   const transformDataToPieData = (data) => {
     if (!data || !Array.isArray(data)) return [];
     const categoryMap = data.reduce((acc, item) => {
@@ -275,98 +310,59 @@ const FinancialOverview = () => {
     }));
   };
 
-  const calculateRunwayMonths = () => {
-    const totalEarnings = organizationEarnings.reduce((sum, earning) => sum + earning.amount, 0);
-    const totalExpenses = organizationExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-    const averageMonthlyExpenses = totalExpenses / organizationExpenses.length;
-    const runwayMonths = totalEarnings / averageMonthlyExpenses;
-    return { runwayMonths };
-  };
-
+  // Handle tab change
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    setView("Organization Level"); // Reset view to "Organization Level" when switching tabs
-    if (tab === "Expenses") {
-      updateChart(transformDataToPieData(organizationExpenses));
-    } else if (tab === "Earning") {
-      updateChart(transformDataToPieData(organizationEarnings));
-    } else if (tab === "Profit and Loss") {
-      const data = aggregateDataByMonth(organizationExpenses, organizationEarnings);
-      updateChart(data);
-    } else if (tab === "Financial Runway") {
-      const data = calculateRunwayMonths();
-      updateChart(data);
-    }
+    setSelectedCategory(null);
   };
 
+  // Handle view change
   const handleViewChange = (event) => {
-    const newView = event.target.value;
-    setView(newView);
-
-    if (newView === "Organization Level") {
-      if (activeTab === "Expenses") {
-        updateChart(transformDataToPieData(organizationExpenses));
-      } else if (activeTab === "Earning") {
-        updateChart(transformDataToPieData(organizationEarnings));
-      } else if (activeTab === "Profit and Loss") {
-        const data = aggregateDataByMonth(organizationExpenses, organizationEarnings);
-        updateChart(data);
-      } else if (activeTab === "Financial Runway") {
-        const data = calculateRunwayMonths();
-        updateChart(data);
-      }
-    } else if (newView === "Account Level" && selectedAccount) {
-      if (activeTab === "Expenses") {
-        updateChart(transformDataToPieData(accountExpenses));
-      } else if (activeTab === "Earning") {
-        updateChart(transformDataToPieData(accountEarnings));
-      } else if (activeTab === "Profit and Loss") {
-        const data = aggregateDataByMonth(accountExpenses, accountEarnings);
-        updateChart(data);
-      } else if (activeTab === "Financial Runway") {
-        const data = calculateRunwayMonths();
-        updateChart(data);
-      }
-    }
+    setView(event.target.value);
+    setSelectedCategory(null);
   };
 
-  const handleAccountChange = async (event) => {
-    const account = event.target.value;
-    setSelectedAccount(account);
-    await fetchAccountData(account.accountId);
+  // Handle account change
+  const handleAccountChange = (event) => {
+    setSelectedAccount(event.target.value);
+    setSelectedCategory(null);
+  };
 
-    if (activeTab === "Expenses") {
-      updateChart(transformDataToPieData(accountExpenses));
-    } else if (activeTab === "Earning") {
-      updateChart(transformDataToPieData(accountEarnings));
-    } else if (activeTab === "Profit and Loss") {
-      const data = aggregateDataByMonth(accountExpenses, accountEarnings);
-      updateChart(data);
-    } else if (activeTab === "Financial Runway") {
-      const data = calculateRunwayMonths();
-      updateChart(data);
-    }
+  // Get breakdown data based on selected category
+  const getBreakdownData = () => {
+    const data =
+      activeTab === "Expenses"
+        ? view === "Organization Level"
+          ? organizationExpenses
+          : accountExpenses
+        : view === "Organization Level"
+        ? organizationEarnings
+        : accountEarnings;
+
+    return data.filter((item) => item.category === selectedCategory);
   };
 
   return (
     <Box p={3} sx={{ marginLeft: "250px", marginTop: "30px", width: "calc(100% - 250px)" }}>
       <Grid item xs={12}>
         <Card sx={{ marginTop: "20px", borderRadius: "12px", overflow: "visible" }}>
-          <Box mx={2} mt={-3} py={3} px={2} bgcolor="info.main" borderRadius="lg">
+          <Box mx={2} mt={-3} py={3} px={2} bgcolor="info.main" borderRadius="12px">
             <Typography variant="h6" color="white">
               Financial Overview
             </Typography>
           </Box>
           <Box pt={3} pb={2} px={2}>
-            <Box display="flex" gap={2} mb={2}>
+            <Box display="flex" gap={3} mb={3}>
               {["Expenses", "Earning", "Profit and Loss", "Financial Runway"].map((tab) => (
                 <Button
                   key={tab}
                   variant={activeTab === tab ? "contained" : "outlined"}
-                  onClick={() => handleTabChange(tab)} // Use handleTabChange instead of setActiveTab
+                  onClick={() => handleTabChange(tab)}
                   sx={{
-                    color: activeTab === tab ? "white" : "primary.main", // Change font color based on active tab
+                    color: activeTab === tab ? "white" : "primary.main",
                     backgroundColor: activeTab === tab ? "primary.main" : "transparent",
+                    padding: "8px 16px",
+                    borderRadius: "8px",
                     "&:hover": {
                       backgroundColor: activeTab === tab ? "primary.dark" : "primary.light",
                     },
@@ -394,44 +390,82 @@ const FinancialOverview = () => {
                   <FormControl fullWidth sx={{ mb: 2 }}>
                     <InputLabel>Account</InputLabel>
                     <Select
-                      value={selectedAccount}
-                      onChange={handleAccountChange} // Use handleAccountChange instead of setSelectedAccount
+                      value={selectedAccount || ""}
+                      onChange={handleAccountChange}
                       label="Account"
                     >
                       {accounts.map((account) => (
                         <MenuItem key={account.id} value={account}>
-                          {account.accountId} {/* Display accountId (e.g., "ACC-7028") */}
+                          {account.accountId}
                         </MenuItem>
                       ))}
                     </Select>
                   </FormControl>
                 )}
 
-                <Box>
-                  <Typography variant="h6" gutterBottom>
-                    {view === "Organization Level"
-                      ? `Organization ${
-                          activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
-                        } Breakdown`
-                      : selectedAccount
-                      ? `${selectedAccount.accountId} ${
-                          activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
-                        } Breakdown`
-                      : "Select an Account"}
-                  </Typography>
-                  <Box ref={chartRef} sx={{ width: "100%", height: 400 }} />
+                <Box display="flex" flexDirection="row" alignItems="flex-start" gap={3}>
+                  <Box
+                    sx={{
+                      width: selectedCategory ? "50%" : "100%",
+                      transition: "width 0.3s, transform 0.3s",
+                    }}
+                  >
+                    <Typography variant="h6" gutterBottom>
+                      {view === "Organization Level"
+                        ? `Organization ${
+                            activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
+                          } Breakdown`
+                        : selectedAccount
+                        ? `${selectedAccount.accountId} ${
+                            activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
+                          } Breakdown`
+                        : "Select an Account"}
+                    </Typography>
+                    {loading ? (
+                      <Box display="flex" justifyContent="center" mt={5}>
+                        <CircularProgress />
+                      </Box>
+                    ) : view === "Account Level" && !selectedAccount ? (
+                      <Typography variant="h6" sx={{ textAlign: "center", mt: 5 }}>
+                        Please select an account
+                      </Typography>
+                    ) : (
+                      <Box ref={chartRef} sx={{ width: "100%", height: 400 }} />
+                    )}
+                  </Box>
+
+                  {selectedCategory && (
+                    <Box sx={{ width: "50%", transition: "transform 0.3s" }}>
+                      <Typography variant="h6" gutterBottom>
+                        Breakdown of {selectedCategory}
+                      </Typography>
+                      <TableContainer component={Paper}>
+                        <Table>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Date</TableCell>
+                              <TableCell>Amount</TableCell>
+                              <TableCell>Reference ID</TableCell>
+                              <TableCell>Account ID</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {getBreakdownData().map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell>{item.date.toLocaleDateString()}</TableCell>
+                                <TableCell>{item.amount}</TableCell>
+                                <TableCell>{item.referenceId || "N/A"}</TableCell>
+                                <TableCell>{item.accountId}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+                  )}
                 </Box>
               </>
             )}
-
-            {activeTab !== "Expenses" &&
-              activeTab !== "Earning" &&
-              activeTab !== "Profit and Loss" &&
-              activeTab !== "Financial Runway" && (
-                <Typography variant="h6" sx={{ textAlign: "center", mt: 5 }}>
-                  {activeTab} Page (Coming Soon)
-                </Typography>
-              )}
           </Box>
         </Card>
       </Grid>
