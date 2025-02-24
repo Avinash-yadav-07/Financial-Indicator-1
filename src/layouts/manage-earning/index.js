@@ -43,11 +43,12 @@ const ManageEarnings = () => {
   const [open, setOpen] = useState(false);
   const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
 
-  // New form states for category and reference (instead of separate client/account/project)
+  // New form states for category, reference, and account
   const [category, setCategory] = useState("");
   const [reference, setReference] = useState(null);
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
+  const [selectedAccount, setSelectedAccount] = useState(null); // Added for account selection
 
   // Dropdown data for possible references
   const [clients, setClients] = useState([]);
@@ -124,12 +125,13 @@ const ManageEarnings = () => {
     amount: PropTypes.number.isRequired,
   };
 
-  // Table configuration now shows "category" and "reference"
+  // Table configuration with added "account" column
   const tableData = {
     columns: [
       { Header: "earning id", accessor: "earningId", align: "left" },
       { Header: "category", accessor: "category", align: "left" },
       { Header: "reference", accessor: "reference", align: "left" },
+      { Header: "account", accessor: "account", align: "left" }, // Added
       { Header: "amount", accessor: "amount", align: "center" },
       { Header: "date", accessor: "date", align: "center" },
       { Header: "actions", accessor: "actions", align: "center" },
@@ -146,6 +148,11 @@ const ManageEarnings = () => {
         </MDTypography>
       ),
       reference: <EarningDetails label="Reference" value={earning.referenceId || "N/A"} />,
+      account: (
+        <MDTypography variant="caption" fontWeight="medium">
+          {earning.accountId || "N/A"}
+        </MDTypography>
+      ), // Added
       amount: <AmountBadge amount={Number(earning.amount)} />,
       date: (
         <MDTypography variant="caption" color="text" fontWeight="medium">
@@ -169,8 +176,7 @@ const ManageEarnings = () => {
     })),
   };
 
-  // When saving, build a new earning object using the chosen category and reference.
-  // If the reference was selected via Autocomplete, extract its identifier.
+  // Handle adding a new earning with accountId
   const handleAddEarning = async () => {
     const newEarning = {
       earningId: `E-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -178,22 +184,24 @@ const ManageEarnings = () => {
       referenceId:
         reference && typeof reference === "object"
           ? reference.projectId || reference.clientId || reference.accountId || reference.name
-          : reference || "N/A", // Ensure there's a fallback value
+          : reference || "N/A",
       amount: Number(amount) || 0,
       date: date ? Timestamp.fromDate(new Date(date)) : Timestamp.now(),
+      accountId: selectedAccount ? selectedAccount.id : null, // Added
     };
 
     await addDoc(collection(db, "earnings"), newEarning);
     handleClose();
   };
 
-  // Reset form fields on close
+  // Reset form fields on close, including selectedAccount
   const handleClose = () => {
     setOpen(false);
     setCategory("");
     setReference(null);
     setAmount("");
     setDate("");
+    setSelectedAccount(null); // Added
   };
 
   return (
@@ -324,6 +332,19 @@ const ManageEarnings = () => {
               </>
             )}
 
+            {/* Account Selection (Optional) */}
+            <Grid item xs={12}>
+              <Autocomplete
+                options={accounts}
+                getOptionLabel={(option) => option.accountId || option.name}
+                value={selectedAccount}
+                onChange={(e, newValue) => setSelectedAccount(newValue)}
+                renderInput={(params) => (
+                  <TextField {...params} label="Select Account (Optional)" fullWidth />
+                )}
+              />
+            </Grid>
+
             {/* Amount and Date fields */}
             <Grid item xs={12} md={6}>
               <TextField
@@ -376,6 +397,9 @@ const ManageEarnings = () => {
               </Grid>
               <Grid item xs={6}>
                 <EarningDetails label="Reference" value={selectedEarning.referenceId || "N/A"} />
+              </Grid>
+              <Grid item xs={6}>
+                <EarningDetails label="Account ID" value={selectedEarning.accountId || "N/A"} /> {/* Added */}
               </Grid>
               <Grid item xs={6}>
                 <EarningDetails
