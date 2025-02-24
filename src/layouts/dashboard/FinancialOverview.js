@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import * as echarts from "echarts";
 import { db } from "../manage-employee/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
 const FinancialOverview = () => {
   const [view, setView] = useState("Organization Level");
@@ -20,6 +20,8 @@ const FinancialOverview = () => {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [organizationExpenses, setOrganizationExpenses] = useState([]);
   const [organizationEarnings, setOrganizationEarnings] = useState([]);
+  const [accountExpenses, setAccountExpenses] = useState([]);
+  const [accountEarnings, setAccountEarnings] = useState([]);
   const [activeTab, setActiveTab] = useState("Expenses"); // Set "Expenses" as default
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
@@ -35,29 +37,57 @@ const FinancialOverview = () => {
       }));
       setAccounts(accountsData);
 
-      // Fetch expenses
+      // Fetch organization-level expenses
       const expensesSnapshot = await getDocs(collection(db, "expenses"));
       const expensesData = expensesSnapshot.docs.map((doc) => ({
         id: doc.id,
         date: doc.data().date.toDate(), // Convert Firestore timestamp to JavaScript Date
         amount: doc.data().amount,
         category: doc.data().category,
+        accountId: doc.data().accountId, // Ensure accountId is included
       }));
       setOrganizationExpenses(expensesData);
 
-      // Fetch earnings
+      // Fetch organization-level earnings
       const earningsSnapshot = await getDocs(collection(db, "earnings"));
       const earningsData = earningsSnapshot.docs.map((doc) => ({
         id: doc.id,
         date: doc.data().date.toDate(), // Convert Firestore timestamp to JavaScript Date
         amount: doc.data().amount,
         category: doc.data().category,
+        accountId: doc.data().accountId, // Ensure accountId is included
       }));
       setOrganizationEarnings(earningsData);
     };
 
     fetchData();
   }, []);
+
+  const fetchAccountData = async (accountId) => {
+    // Fetch account-level expenses
+    const expensesQuery = query(collection(db, "expenses"), where("accountId", "==", accountId));
+    const expensesSnapshot = await getDocs(expensesQuery);
+    const expensesData = expensesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      date: doc.data().date.toDate(),
+      amount: doc.data().amount,
+      category: doc.data().category,
+      accountId: doc.data().accountId,
+    }));
+    setAccountExpenses(expensesData);
+
+    // Fetch account-level earnings
+    const earningsQuery = query(collection(db, "earnings"), where("accountId", "==", accountId));
+    const earningsSnapshot = await getDocs(earningsQuery);
+    const earningsData = earningsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      date: doc.data().date.toDate(),
+      amount: doc.data().amount,
+      category: doc.data().category,
+      accountId: doc.data().accountId,
+    }));
+    setAccountEarnings(earningsData);
+  };
 
   const updateChart = (data) => {
     if (!chartRef.current) return;
@@ -273,46 +303,37 @@ const FinancialOverview = () => {
     const newView = event.target.value;
     setView(newView);
 
-    // Ensure that selectedAccount is defined and has the expected structure
-    const accountExpenses = Array.isArray(selectedAccount?.expenses)
-      ? selectedAccount.expenses
-      : [];
-    const accountEarnings = Array.isArray(selectedAccount?.earnings)
-      ? selectedAccount.earnings
-      : [];
-
-    if (activeTab === "Expenses") {
-      if (newView === "Organization Level") {
+    if (newView === "Organization Level") {
+      if (activeTab === "Expenses") {
         updateChart(transformDataToPieData(organizationExpenses));
-      } else if (newView === "Account Level" && selectedAccount) {
-        updateChart(transformDataToPieData(accountExpenses));
-      }
-    } else if (activeTab === "Earning") {
-      if (newView === "Organization Level") {
+      } else if (activeTab === "Earning") {
         updateChart(transformDataToPieData(organizationEarnings));
-      } else if (newView === "Account Level" && selectedAccount) {
-        updateChart(transformDataToPieData(accountEarnings));
-      }
-    } else if (activeTab === "Profit and Loss") {
-      if (newView === "Organization Level") {
+      } else if (activeTab === "Profit and Loss") {
         const data = aggregateDataByMonth(organizationExpenses, organizationEarnings);
         updateChart(data);
-      } else if (newView === "Account Level" && selectedAccount) {
-        const data = aggregateDataByMonth(accountExpenses, accountEarnings);
+      } else if (activeTab === "Financial Runway") {
+        const data = calculateRunwayMonths();
         updateChart(data);
       }
-    } else if (activeTab === "Financial Runway") {
-      const data = calculateRunwayMonths();
-      updateChart(data);
+    } else if (newView === "Account Level" && selectedAccount) {
+      if (activeTab === "Expenses") {
+        updateChart(transformDataToPieData(accountExpenses));
+      } else if (activeTab === "Earning") {
+        updateChart(transformDataToPieData(accountEarnings));
+      } else if (activeTab === "Profit and Loss") {
+        const data = aggregateDataByMonth(accountExpenses, accountEarnings);
+        updateChart(data);
+      } else if (activeTab === "Financial Runway") {
+        const data = calculateRunwayMonths();
+        updateChart(data);
+      }
     }
   };
 
-  const handleAccountChange = (event) => {
+  const handleAccountChange = async (event) => {
     const account = event.target.value;
     setSelectedAccount(account);
-
-    const accountExpenses = Array.isArray(account.expenses) ? account.expenses : [];
-    const accountEarnings = Array.isArray(account.earnings) ? account.earnings : [];
+    await fetchAccountData(account.accountId);
 
     if (activeTab === "Expenses") {
       updateChart(transformDataToPieData(accountExpenses));
