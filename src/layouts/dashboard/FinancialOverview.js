@@ -10,17 +10,12 @@ import {
   Select,
   Button,
   CircularProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
 } from "@mui/material";
 import * as echarts from "echarts";
 import { db } from "../manage-employee/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
+import Table from 'react-bootstrap/Table';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 // Utility function to calculate average monthly expenses
 const calculateAverageMonthlyExpenses = (expenses) => {
@@ -339,7 +334,7 @@ const FinancialOverview = () => {
         ? organizationEarnings
         : accountEarnings;
 
-    return data.filter((item) => item.category === selectedCategory);
+    return selectedCategory ? data.filter((item) => item.category === selectedCategory) : data;
   };
 
   return (
@@ -402,14 +397,8 @@ const FinancialOverview = () => {
                     </Select>
                   </FormControl>
                 )}
-
-                <Box display="flex" flexDirection="row" alignItems="flex-start" gap={3}>
-                  <Box
-                    sx={{
-                      width: selectedCategory ? "50%" : "100%",
-                      transition: "width 0.3s, transform 0.3s",
-                    }}
-                  >
+                <Box display="grid" gridTemplateColumns="1fr 1fr" gap={3}>
+                  <Box>
                     <Typography variant="h6" gutterBottom>
                       {view === "Organization Level"
                         ? `Organization ${
@@ -434,33 +423,31 @@ const FinancialOverview = () => {
                     )}
                   </Box>
 
-                  {selectedCategory && (
-                    <Box sx={{ width: "50%", transition: "transform 0.3s" }}>
+                  {(activeTab === "Expenses" || activeTab === "Earning") && (
+                    <Box>
                       <Typography variant="h6" gutterBottom>
-                        Breakdown of {selectedCategory}
+                        Breakdown Details
                       </Typography>
-                      <TableContainer component={Paper}>
-                        <Table>
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Date</TableCell>
-                              <TableCell>Amount</TableCell>
-                              <TableCell>Reference ID</TableCell>
-                              <TableCell>Account ID</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {getBreakdownData().map((item) => (
-                              <TableRow key={item.id}>
-                                <TableCell>{item.date.toLocaleDateString()}</TableCell>
-                                <TableCell>{item.amount}</TableCell>
-                                <TableCell>{item.referenceId || "N/A"}</TableCell>
-                                <TableCell>{item.accountId}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                      <Table responsive striped bordered hover>
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Amount</th>
+                            <th>Reference ID</th>
+                            <th>Account ID</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {getBreakdownData().map((item) => (
+                            <tr key={item.id}>
+                              <td>{item.date.toLocaleDateString()}</td>
+                              <td>{item.amount}</td>
+                              <td>{item.referenceId || "N/A"}</td>
+                              <td>{item.accountId}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
                     </Box>
                   )}
                 </Box>
