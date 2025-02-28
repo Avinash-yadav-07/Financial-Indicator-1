@@ -10,13 +10,15 @@ import {
   Select,
   Button,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   Table,
-  TableBody,
-  TableCell,
-  TableContainer,
   TableHead,
+  TableBody,
   TableRow,
-  Paper,
+  TableCell,
 } from "@mui/material";
 import * as echarts from "echarts";
 import { db } from "../manage-employee/firebase";
@@ -50,6 +52,49 @@ const calculateRunwayMonths = (earnings, expenses) => {
   return averageMonthlyExpenses > 0 ? totalEarnings / averageMonthlyExpenses : 0;
 };
 
+// Utility function to aggregate data by month
+const aggregateDataByMonth = (expenses, earnings) => {
+  const monthlyData = {};
+  const getMonthYear = (date) => `${date.getFullYear()}-${date.getMonth() + 1}`;
+
+  expenses.forEach((expense) => {
+    const monthYear = getMonthYear(expense.date);
+    if (!monthlyData[monthYear]) {
+      monthlyData[monthYear] = { expenses: 0, earnings: 0 };
+    }
+    monthlyData[monthYear].expenses += expense.amount;
+  });
+
+  earnings.forEach((earning) => {
+    const monthYear = getMonthYear(earning.date);
+    if (!monthlyData[monthYear]) {
+      monthlyData[monthYear] = { expenses: 0, earnings: 0 };
+    }
+    monthlyData[monthYear].earnings += earning.amount;
+  });
+
+  const months = Object.keys(monthlyData).sort();
+  const expensesData = months.map((month) => monthlyData[month].expenses);
+  const earningsData = months.map((month) => monthlyData[month].earnings);
+
+  return { months, expenses: expensesData, earnings: earningsData };
+};
+
+// Utility function to transform data into pie chart format
+const transformDataToPieData = (data) => {
+  if (!data || !Array.isArray(data)) return [];
+  const categoryMap = data.reduce((acc, item) => {
+    if (!acc[item.category]) acc[item.category] = 0;
+    acc[item.category] += item.amount;
+    return acc;
+  }, {});
+  return Object.keys(categoryMap).map((category) => ({
+    name: category,
+    value: categoryMap[category],
+    details: data.filter((item) => item.category === category),
+  }));
+};
+
 const FinancialOverview = () => {
   const [view, setView] = useState("Organization Level");
   const [accounts, setAccounts] = useState([]);
@@ -61,6 +106,8 @@ const FinancialOverview = () => {
   const [activeTab, setActiveTab] = useState("Expenses");
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [selectedData, setSelectedData] = useState(null);
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
@@ -162,40 +209,6 @@ const FinancialOverview = () => {
   useEffect(() => {
     if (!chartRef.current) return;
 
-    let data;
-    if (activeTab === "Expenses") {
-      data = transformDataToPieData(
-        view === "Organization Level" ? organizationExpenses : accountExpenses
-      );
-    } else if (activeTab === "Earning") {
-      data = transformDataToPieData(
-        view === "Organization Level" ? organizationEarnings : accountEarnings
-      );
-    } else if (activeTab === "Profit and Loss") {
-      const expenses = view === "Organization Level" ? organizationExpenses : accountExpenses;
-      const earnings = view === "Organization Level" ? organizationEarnings : accountEarnings;
-      data = aggregateDataByMonth(expenses, earnings);
-    } else if (activeTab === "Financial Runway") {
-      const earnings = view === "Organization Level" ? organizationEarnings : accountEarnings;
-      const expenses = view === "Organization Level" ? organizationExpenses : accountExpenses;
-      const runwayMonths = calculateRunwayMonths(earnings, expenses);
-      data = { runwayMonths };
-    }
-    updateChart(data);
-  }, [
-    activeTab,
-    view,
-    selectedAccount,
-    organizationExpenses,
-    organizationEarnings,
-    accountExpenses,
-    accountEarnings,
-  ]);
-
-  // Function to update the ECharts instance
-  const updateChart = (data) => {
-    if (!chartRef.current) return;
-
     if (chartInstance.current) {
       chartInstance.current.dispose();
       chartInstance.current = null;
@@ -204,6 +217,10 @@ const FinancialOverview = () => {
     chartInstance.current = echarts.init(chartRef.current);
 
     if (activeTab === "Profit and Loss") {
+      const expenses = view === "Organization Level" ? organizationExpenses : accountExpenses;
+      const earnings = view === "Organization Level" ? organizationEarnings : accountEarnings;
+      const data = aggregateDataByMonth(expenses, earnings);
+
       const option = {
         title: { text: "Earnings vs Expenses", subtext: "Monthly Comparison" },
         tooltip: { trigger: "axis" },
@@ -225,6 +242,10 @@ const FinancialOverview = () => {
       };
       chartInstance.current.setOption(option);
     } else if (activeTab === "Financial Runway") {
+      const earnings = view === "Organization Level" ? organizationEarnings : accountEarnings;
+      const expenses = view === "Organization Level" ? organizationExpenses : accountExpenses;
+      const runwayMonths = calculateRunwayMonths(earnings, expenses);
+
       const option = {
         title: {
           text: "Financial Runway",
@@ -237,12 +258,22 @@ const FinancialOverview = () => {
           {
             name: "Runway Months",
             type: "bar",
-            data: [data.runwayMonths],
+            data: [runwayMonths],
           },
         ],
       };
       chartInstance.current.setOption(option);
     } else {
+      const data = transformDataToPieData(
+        activeTab === "Expenses"
+          ? view === "Organization Level"
+            ? organizationExpenses
+            : accountExpenses
+          : view === "Organization Level"
+          ? organizationEarnings
+          : accountEarnings
+      );
+
       const option = {
         tooltip: { trigger: "item" },
         legend: { top: "5%", left: "center" },
@@ -263,52 +294,22 @@ const FinancialOverview = () => {
       };
       chartInstance.current.setOption(option);
       chartInstance.current.on("click", (params) => {
-        setSelectedCategory(params.name);
+        const clickedData = data.find((d) => d.name === params.name);
+        if (clickedData) {
+          setSelectedData(clickedData);
+          setOpen(true);
+        }
       });
     }
-  };
-
-  // Function to aggregate data by month
-  const aggregateDataByMonth = (expenses, earnings) => {
-    const monthlyData = {};
-    const getMonthYear = (date) => `${date.getFullYear()}-${date.getMonth() + 1}`;
-
-    expenses.forEach((expense) => {
-      const monthYear = getMonthYear(expense.date);
-      if (!monthlyData[monthYear]) {
-        monthlyData[monthYear] = { expenses: 0, earnings: 0 };
-      }
-      monthlyData[monthYear].expenses += expense.amount;
-    });
-
-    earnings.forEach((earning) => {
-      const monthYear = getMonthYear(earning.date);
-      if (!monthlyData[monthYear]) {
-        monthlyData[monthYear] = { expenses: 0, earnings: 0 };
-      }
-      monthlyData[monthYear].earnings += earning.amount;
-    });
-
-    const months = Object.keys(monthlyData).sort();
-    const expensesData = months.map((month) => monthlyData[month].expenses);
-    const earningsData = months.map((month) => monthlyData[month].earnings);
-
-    return { months, expenses: expensesData, earnings: earningsData };
-  };
-
-  // Function to transform data into pie chart format
-  const transformDataToPieData = (data) => {
-    if (!data || !Array.isArray(data)) return [];
-    const categoryMap = data.reduce((acc, item) => {
-      if (!acc[item.category]) acc[item.category] = 0;
-      acc[item.category] += item.amount;
-      return acc;
-    }, {});
-    return Object.keys(categoryMap).map((category) => ({
-      name: category,
-      value: categoryMap[category],
-    }));
-  };
+  }, [
+    activeTab,
+    view,
+    selectedAccount,
+    organizationExpenses,
+    organizationEarnings,
+    accountExpenses,
+    accountEarnings,
+  ]);
 
   // Handle tab change
   const handleTabChange = (tab) => {
@@ -326,20 +327,6 @@ const FinancialOverview = () => {
   const handleAccountChange = (event) => {
     setSelectedAccount(event.target.value);
     setSelectedCategory(null);
-  };
-
-  // Get breakdown data based on selected category
-  const getBreakdownData = () => {
-    const data =
-      activeTab === "Expenses"
-        ? view === "Organization Level"
-          ? organizationExpenses
-          : accountExpenses
-        : view === "Organization Level"
-        ? organizationEarnings
-        : accountEarnings;
-
-    return data.filter((item) => item.category === selectedCategory);
   };
 
   return (
@@ -402,66 +389,28 @@ const FinancialOverview = () => {
                     </Select>
                   </FormControl>
                 )}
-
-                <Box display="flex" flexDirection="row" alignItems="flex-start" gap={3}>
-                  <Box
-                    sx={{
-                      width: selectedCategory ? "50%" : "100%",
-                      transition: "width 0.3s, transform 0.3s",
-                    }}
-                  >
-                    <Typography variant="h6" gutterBottom>
-                      {view === "Organization Level"
-                        ? `Organization ${
-                            activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
-                          } Breakdown`
-                        : selectedAccount
-                        ? `${selectedAccount.accountId} ${
-                            activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
-                          } Breakdown`
-                        : "Select an Account"}
-                    </Typography>
-                    {loading ? (
-                      <Box display="flex" justifyContent="center" mt={5}>
-                        <CircularProgress />
-                      </Box>
-                    ) : view === "Account Level" && !selectedAccount ? (
-                      <Typography variant="h6" sx={{ textAlign: "center", mt: 5 }}>
-                        Please select an account
-                      </Typography>
-                    ) : (
-                      <Box ref={chartRef} sx={{ width: "100%", height: 400 }} />
-                    )}
-                  </Box>
-
-                  {selectedCategory && (
-                    <Box sx={{ width: "50%", transition: "transform 0.3s" }}>
-                      <Typography variant="h6" gutterBottom>
-                        Breakdown of {selectedCategory}
-                      </Typography>
-                      <TableContainer component={Paper}>
-                        <Table>
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Date</TableCell>
-                              <TableCell>Amount</TableCell>
-                              <TableCell>Reference ID</TableCell>
-                              <TableCell>Account ID</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {getBreakdownData().map((item) => (
-                              <TableRow key={item.id}>
-                                <TableCell>{item.date.toLocaleDateString()}</TableCell>
-                                <TableCell>{item.amount}</TableCell>
-                                <TableCell>{item.referenceId || "N/A"}</TableCell>
-                                <TableCell>{item.accountId}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    {view === "Organization Level"
+                      ? `Organization ${
+                          activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
+                        } Breakdown`
+                      : selectedAccount
+                      ? `${selectedAccount.accountId} ${
+                          activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
+                        } Breakdown`
+                      : "Select an Account"}
+                  </Typography>
+                  {loading ? (
+                    <Box display="flex" justifyContent="center" mt={5}>
+                      <CircularProgress />
                     </Box>
+                  ) : view === "Account Level" && !selectedAccount ? (
+                    <Typography variant="h6" sx={{ textAlign: "center", mt: 5 }}>
+                      Please select an account
+                    </Typography>
+                  ) : (
+                    <Box ref={chartRef} sx={{ width: "100%", height: 400 }} />
                   )}
                 </Box>
               </>
@@ -469,6 +418,38 @@ const FinancialOverview = () => {
           </Box>
         </Card>
       </Grid>
+
+      {/* Dialog for showing detailed data */}
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>{selectedData?.name} Details</DialogTitle>
+        <DialogContent>
+          <Table sx={{ minWidth: 650 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Date</TableCell>
+                <TableCell>Amount</TableCell>
+                <TableCell>Reference ID</TableCell>
+                <TableCell>Account ID</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {selectedData?.details.map((item, index) => (
+                <TableRow key={index}>
+                  <TableCell>{item.date.toLocaleDateString()}</TableCell>
+                  <TableCell>{item.amount}</TableCell>
+                  <TableCell>{item.referenceId || "N/A"}</TableCell>
+                  <TableCell>{item.accountId}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpen(false)} color="primary">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
