@@ -620,7 +620,9 @@ const ManageEmployee = () => {
           },
         }}
       >
-        <DialogTitle sx={{ color: darkMode ? "white" : "black" }}>Confirm Save Changes?</DialogTitle>
+        <DialogTitle sx={{ color: darkMode ? "white" : "black" }}>
+          Confirm Save Changes?
+        </DialogTitle>
         <DialogActions>
           <Button onClick={() => setConfirmUpdateOpen(false)}>Cancel</Button>
           <Button onClick={confirmUpdate} color="primary">

@@ -1,107 +1,162 @@
-/**
-=========================================================
-* Material Dashboard 2  React - v2.2.0
-=========================================================
-
-* Product Page: https://www.creative-tim.com/product/material-dashboard-react
-* Copyright 2023 Creative Tim (https://www.creative-tim.com)
-
-Coded by www.creative-tim.com
-
- =========================================================
-
-* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-*/
-
-import { useMemo } from "react";
-
-// porp-types is a library for typechecking of props
+// src/examples/Charts/BarCharts/ReportsBarChart/index.js
+import React, { useEffect, useRef } from "react";
+import * as echarts from "echarts";
 import PropTypes from "prop-types";
-
-// react-chartjs-2 components
-import { Bar } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from "chart.js";
-
-// @mui material components
 import Card from "@mui/material/Card";
-import Divider from "@mui/material/Divider";
-import Icon from "@mui/material/Icon";
-
-// Material Dashboard 2 React components
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
+import Typography from "@mui/material/Typography";
 
-// ReportsBarChart configurations
-import configs from "examples/Charts/BarCharts/ReportsBarChart/configs";
+function ReportsBarChart({
+  title,
+  description,
+  chart,
+  onClick,
+  isActive,
+  profitLoss,
+  runwayMonths,
+}) {
+  const chartRef = useRef(null);
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+  useEffect(() => {
+    if (chartRef.current) {
+      const myChart = echarts.init(chartRef.current);
 
-function ReportsBarChart({ color, title, description, date, chart }) {
-  const { data, options } = configs(chart.labels || [], chart.datasets || {});
+      const option = {
+        tooltip: {
+          trigger: "axis",
+          axisPointer: {
+            type: "cross",
+            crossStyle: {
+              color: "#999",
+            },
+          },
+        },
+        toolbox: {
+          feature: {
+            saveAsImage: { show: true }, // Only show the download button
+          },
+        },
+        legend: {
+          data: chart.labels || [],
+        },
+        xAxis: [
+          {
+            type: "category",
+            data: chart.xAxisData || [],
+            axisPointer: {
+              type: "shadow",
+            },
+          },
+        ],
+        yAxis: chart.yAxis || {
+          type: "value",
+          name: chart.yAxisName || "Value",
+          min: 0,
+          max: Math.max(...(chart.seriesData?.[0]?.data || [])) + 50,
+          interval: 50,
+          axisLabel: {
+            formatter: `{value} ${chart.yAxisUnit || ""}`,
+          },
+        },
+        series: chart.seriesData || [],
+      };
+
+      myChart.setOption(option);
+
+      // Cleanup on unmount
+      return () => {
+        myChart.dispose();
+      };
+    }
+  }, [chart]);
 
   return (
-    <Card sx={{ height: "100%" }}>
-      <MDBox padding="1rem">
-        {useMemo(
-          () => (
-            <MDBox
-              variant="gradient"
-              bgColor={color}
-              borderRadius="lg"
-              coloredShadow={color}
-              py={2}
-              pr={0.5}
-              mt={-5}
-              height="12.5rem"
-            >
-              <Bar data={data} options={options} redraw />
-            </MDBox>
-          ),
-          [color, chart]
-        )}
-        <MDBox pt={3} pb={1} px={1}>
-          <MDTypography variant="h6" textTransform="capitalize">
-            {title}
-          </MDTypography>
-          <MDTypography component="div" variant="button" color="text" fontWeight="light">
+    <Card
+      onClick={onClick}
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        border: isActive ? "2px solid #3f51b5" : "1px solid #e0e0e0", // Add border for active card
+        boxShadow: isActive ? "0 4px 8px rgba(0, 0, 0, 0.2)" : "none", // Add shadow for active card
+      }}
+    >
+      <MDBox py={2} pr={2} pl={2}>
+        {title && <MDTypography variant="h6">{title}</MDTypography>}
+        {description && (
+          <MDTypography component="div" variant="button" color="text">
             {description}
           </MDTypography>
-          <Divider />
-          <MDBox display="flex" alignItems="center">
-            <MDTypography variant="button" color="text" lineHeight={1} sx={{ mt: 0.15, mr: 0.5 }}>
-              <Icon>schedule</Icon>
-            </MDTypography>
-            <MDTypography variant="button" color="text" fontWeight="light">
-              {date}
-            </MDTypography>
+        )}
+        <div ref={chartRef} style={{ width: "100%", height: "300px" }} />
+        {/* Display profit or loss below the chart */}
+        {profitLoss !== undefined && (
+          <MDBox mt={2} textAlign="center">
+            <Typography
+              variant="h6"
+              color={profitLoss >= 0 ? "success.main" : "error.main"} // Green for profit, red for loss
+            >
+              {profitLoss >= 0 ? `Profit: $${profitLoss}` : `Loss: $${Math.abs(profitLoss)}`}
+            </Typography>
           </MDBox>
-        </MDBox>
+        )}
+        {/* Display runway months further down in the card */}
+        {runwayMonths !== undefined && (
+          <MDBox mt={4} textAlign="center">
+            {" "}
+            {/* Increased margin-top to 4 */}
+            <Typography
+              variant="h6"
+              color={runwayMonths >= 0 ? "success.main" : "error.main"} // Green for positive, red for negative
+            >
+              Runway: {runwayMonths.toFixed(2)} months
+            </Typography>
+          </MDBox>
+        )}
       </MDBox>
     </Card>
   );
 }
 
-// Setting default values for the props of ReportsBarChart
 ReportsBarChart.defaultProps = {
-  color: "info",
+  title: "",
   description: "",
+  onClick: () => {},
+  isActive: false,
+  profitLoss: undefined, // Default value for profitLoss
+  runwayMonths: undefined, // Default value for runwayMonths
 };
 
-// Typechecking props for the ReportsBarChart
 ReportsBarChart.propTypes = {
-  color: PropTypes.oneOf(["primary", "secondary", "info", "success", "warning", "error", "dark"]),
-  title: PropTypes.string.isRequired,
-  description: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
-  date: PropTypes.string.isRequired,
-  chart: PropTypes.objectOf(PropTypes.oneOfType([PropTypes.array, PropTypes.object])).isRequired,
+  title: PropTypes.string,
+  description: PropTypes.string,
+  chart: PropTypes.shape({
+    labels: PropTypes.arrayOf(PropTypes.string),
+    xAxisData: PropTypes.arrayOf(PropTypes.string),
+    yAxisName: PropTypes.string,
+    yAxisUnit: PropTypes.string,
+    seriesData: PropTypes.arrayOf(
+      PropTypes.shape({
+        name: PropTypes.string,
+        type: PropTypes.string,
+        data: PropTypes.arrayOf(PropTypes.number),
+      })
+    ),
+    yAxis: PropTypes.shape({
+      type: PropTypes.string,
+      name: PropTypes.string,
+      min: PropTypes.number,
+      max: PropTypes.number,
+      axisLabel: PropTypes.shape({
+        formatter: PropTypes.string,
+      }),
+    }),
+  }).isRequired,
+  onClick: PropTypes.func,
+  isActive: PropTypes.bool,
+  profitLoss: PropTypes.number, // Add prop validation for profitLoss
+  runwayMonths: PropTypes.number, // Add prop validation for runwayMonths
 };
 
 export default ReportsBarChart;

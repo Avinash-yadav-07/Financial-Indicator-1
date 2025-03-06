@@ -1,6 +1,6 @@
 import React from "react";
 import { Route, Routes } from "react-router-dom";
-import ExpenseOverview from "layouts/dashboard/FinancialOverview";
+import ExpenseOverview from "layouts/dashboard";
 import Customer from "layouts/billing";
 import ManageEmployee from "layouts/manage-employee"; // Ensure this path is correct
 import ManageProjects from "./layouts/manage-projects";
@@ -10,7 +10,7 @@ import ManageEarnings from "layouts/manage-earning";
 import ManageAccount from "layouts/manage-accounts";
 import ManageExpenses from "./layouts/manage-expense";
 import Icon from "@mui/material/Icon";
-import FinancialOverview from "layouts/dashboard/FinancialOverview";
+import Dashboard from "layouts/dashboard"; // Import the Dashboard component
 
 const routes = [
   {
@@ -76,7 +76,7 @@ const routes = [
     key: "financial-overview",
     icon: <Icon fontSize="small">account_balance</Icon>,
     route: "/financial-overview",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
   {
     type: "collapse",
@@ -92,7 +92,7 @@ const routes = [
     key: "sales",
     icon: <Icon fontSize="small">shopping_cart</Icon>,
     route: "/sales",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
   {
     type: "collapse",
@@ -100,7 +100,7 @@ const routes = [
     key: "employee",
     icon: <Icon fontSize="small">badge</Icon>,
     route: "/employee",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
   {
     type: "collapse",
@@ -108,7 +108,7 @@ const routes = [
     key: "product-development",
     icon: <Icon fontSize="small">build</Icon>,
     route: "/product-development",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
   {
     type: "collapse",
@@ -116,7 +116,7 @@ const routes = [
     key: "it-infrastructure",
     icon: <Icon fontSize="small">computer</Icon>,
     route: "/it-infrastructure",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
   {
     type: "collapse",
@@ -124,7 +124,7 @@ const routes = [
     key: "rd-innovation",
     icon: <Icon fontSize="small">lightbulb</Icon>,
     route: "/rd-innovation",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
   {
     type: "collapse",
@@ -132,7 +132,7 @@ const routes = [
     key: "market-analysis",
     icon: <Icon fontSize="small">bar_chart</Icon>,
     route: "/market-analysis",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
   {
     type: "collapse",
@@ -140,7 +140,7 @@ const routes = [
     key: "digital-transformation",
     icon: <Icon fontSize="small">transform</Icon>,
     route: "/digital-transformation",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
   {
     type: "collapse",
@@ -148,7 +148,7 @@ const routes = [
     key: "diversity-inclusion",
     icon: <Icon fontSize="small">diversity_3</Icon>,
     route: "/diversity-inclusion",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
   {
     type: "collapse",
@@ -156,7 +156,7 @@ const routes = [
     key: "security",
     icon: <Icon fontSize="small">security</Icon>,
     route: "/security",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
   {
     type: "collapse",
@@ -164,7 +164,7 @@ const routes = [
     key: "operational-efficiency",
     icon: <Icon fontSize="small">speed</Icon>,
     route: "/operational-efficiency",
-    component: <FinancialOverview />,
+    component: <Dashboard />, // Replaced FinancialOverview with Dashboard
   },
 ];
 

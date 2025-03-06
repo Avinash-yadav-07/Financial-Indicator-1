@@ -344,9 +344,7 @@ const ManageEarnings = () => {
                 getOptionLabel={(option) => `${option.accountId}`}
                 value={selectedAccount}
                 onChange={(e, newValue) => setSelectedAccount(newValue)}
-                renderInput={(params) => (
-                  <TextField {...params} label="Select Account" fullWidth />
-                )}
+                renderInput={(params) => <TextField {...params} label="Select Account" fullWidth />}
               />
             </Grid>
 

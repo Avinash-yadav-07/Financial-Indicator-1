@@ -75,9 +75,12 @@ function DashboardNavbar({ absolute, light, isMini }) {
       sx={(theme) => ({
         ...navbar(theme, { transparentNavbar, absolute, light, darkMode }),
         left: { xs: "0", md: miniSidenav ? "80px" : "260px" }, // Adjust for sidebar
-        width: { xs: "calc(100% - 32px)", md: miniSidenav ? "calc(100% - 112px)" : "calc(100% - 292px)" }, // Reduce width from both sides
+        width: {
+          xs: "calc(100% - 32px)",
+          md: miniSidenav ? "calc(100% - 112px)" : "calc(100% - 292px)",
+        }, // Reduce width from both sides
         margin: { xs: "0 16px", md: miniSidenav ? "0 16px" : "0 16px" }, // Add margin to reduce width
-        backgroundColor: darkMode ? "rgba(8, 52, 75, 0.9)" : "rgba(255, 255, 255, 0.9)", // Dark mode background (not pure black)
+        backgroundColor: darkMode ? "rgba(12, 55, 79, 0.9)" : "rgba(255, 255, 255, 0.9)", // Dark mode background (not pure black)
         backdropFilter: transparentNavbar ? "none" : "blur(10px)", // Add blur effect
         padding: "0 8px", // Reduce horizontal padding
         minHeight: "80px", // Reduce navbar height
@@ -92,15 +95,7 @@ function DashboardNavbar({ absolute, light, isMini }) {
             title={route[route.length - 1]}
             route={route}
             light={light}
-            sx={{
-              color: darkMode ? "white" : "black", // Breadcrumbs color based on dark mode
-              "& .MuiBreadcrumbs-separator": {
-                color: darkMode ? "white" : "black", // Separator color based on dark mode
-              },
-              "& .MuiTypography-root": {
-                color: darkMode ? "white" : "black", // Text color based on dark mode
-              },
-            }}
+            darkMode={darkMode} // Pass darkMode prop
           />
         </MDBox>
         {isMini ? null : (
