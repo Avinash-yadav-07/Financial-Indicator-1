@@ -10,19 +10,19 @@ import {
   Select,
   Button,
   CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Table,
-  TableHead,
   TableBody,
-  TableRow,
   TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
 } from "@mui/material";
 import * as echarts from "echarts";
 import { db } from "../manage-employee/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
+import Table from 'react-bootstrap/Table';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 // Utility function to calculate average monthly expenses
 const calculateAverageMonthlyExpenses = (expenses) => {
@@ -329,6 +329,20 @@ const FinancialOverview = () => {
     setSelectedCategory(null);
   };
 
+  // Get breakdown data based on selected category
+  const getBreakdownData = () => {
+    const data =
+      activeTab === "Expenses"
+        ? view === "Organization Level"
+          ? organizationExpenses
+          : accountExpenses
+        : view === "Organization Level"
+        ? organizationEarnings
+        : accountEarnings;
+
+    return data.filter((item) => item.category === selectedCategory);
+  };
+
   return (
     <Box p={3} sx={{ marginLeft: "250px", marginTop: "30px", width: "calc(100% - 250px)" }}>
       <Grid item xs={12}>
@@ -389,28 +403,66 @@ const FinancialOverview = () => {
                     </Select>
                   </FormControl>
                 )}
-                <Box>
-                  <Typography variant="h6" gutterBottom>
-                    {view === "Organization Level"
-                      ? `Organization ${
-                          activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
-                        } Breakdown`
-                      : selectedAccount
-                      ? `${selectedAccount.accountId} ${
-                          activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
-                        } Breakdown`
-                      : "Select an Account"}
-                  </Typography>
-                  {loading ? (
-                    <Box display="flex" justifyContent="center" mt={5}>
-                      <CircularProgress />
-                    </Box>
-                  ) : view === "Account Level" && !selectedAccount ? (
-                    <Typography variant="h6" sx={{ textAlign: "center", mt: 5 }}>
-                      Please select an account
+
+                <Box display="flex" flexDirection="row" alignItems="flex-start" gap={3}>
+                  <Box
+                    sx={{
+                      width: selectedCategory ? "50%" : "100%",
+                      transition: "width 0.3s, transform 0.3s",
+                    }}
+                  >
+                    <Typography variant="h6" gutterBottom>
+                      {view === "Organization Level"
+                        ? `Organization ${
+                            activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
+                          } Breakdown`
+                        : selectedAccount
+                        ? `${selectedAccount.accountId} ${
+                            activeTab === "Profit and Loss" ? "Profit and Loss" : activeTab
+                          } Breakdown`
+                        : "Select an Account"}
                     </Typography>
-                  ) : (
-                    <Box ref={chartRef} sx={{ width: "100%", height: 400 }} />
+                    {loading ? (
+                      <Box display="flex" justifyContent="center" mt={5}>
+                        <CircularProgress />
+                      </Box>
+                    ) : view === "Account Level" && !selectedAccount ? (
+                      <Typography variant="h6" sx={{ textAlign: "center", mt: 5 }}>
+                        Please select an account
+                      </Typography>
+                    ) : (
+                      <Box ref={chartRef} sx={{ width: "100%", height: 400 }} />
+                    )}
+                  </Box>
+
+                  {selectedCategory && (
+                    <Box sx={{ width: "50%", transition: "transform 0.3s" }}>
+                      <Typography variant="h6" gutterBottom>
+                        Breakdown of {selectedCategory}
+                      </Typography>
+                      <TableContainer component={Paper}>
+                        <Table>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Date</TableCell>
+                              <TableCell>Amount</TableCell>
+                              <TableCell>Reference ID</TableCell>
+                              <TableCell>Account ID</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {getBreakdownData().map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell>{item.date.toLocaleDateString()}</TableCell>
+                                <TableCell>{item.amount}</TableCell>
+                                <TableCell>{item.referenceId || "N/A"}</TableCell>
+                                <TableCell>{item.accountId}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
                   )}
                 </Box>
               </>
@@ -418,38 +470,6 @@ const FinancialOverview = () => {
           </Box>
         </Card>
       </Grid>
-
-      {/* Dialog for showing detailed data */}
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>{selectedData?.name} Details</DialogTitle>
-        <DialogContent>
-          <Table sx={{ minWidth: 650 }}>
-            <TableHead>
-              <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell>Amount</TableCell>
-                <TableCell>Reference ID</TableCell>
-                <TableCell>Account ID</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {selectedData?.details.map((item, index) => (
-                <TableRow key={index}>
-                  <TableCell>{item.date.toLocaleDateString()}</TableCell>
-                  <TableCell>{item.amount}</TableCell>
-                  <TableCell>{item.referenceId || "N/A"}</TableCell>
-                  <TableCell>{item.accountId}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)} color="primary">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };
